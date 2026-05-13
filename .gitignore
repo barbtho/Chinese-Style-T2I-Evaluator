@@ -35,10 +35,13 @@ temp/
 outputs/
 results/
 
-# 忽略所有图片
+# 屏蔽开发期间的测试脚本和旧版本
+ceshi*.py
+evaluate2.*
+main.py
+main.txt
+result_manager.py
+test_pixart_lcm.py
 *.png
 *.jpg
-*.jpeg
-
-# 但不要忽略 assets 文件夹里的图片
 !assets/
