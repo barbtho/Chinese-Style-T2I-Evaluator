@@ -50,6 +50,23 @@
 
 ---
 
+### 🎯 评测指标多维建模 (Multi-dimensional Evaluation Metrics)
+
+为了实现对“中国风”图像生成质量的定量分析，系统构建了六维语义对齐评估模型。该模型通过视觉大模型（VLM）与大语言模型（LLM）的级联，将抽象的艺术意境转化为可量化的多维指标：
+
+| 评价维度 | 英文定义 | 核心考察点 |
+| :--- | :--- | :--- |
+| **实体对象** | **Entity Fidelity** | 考察画面是否精准包含 Prompt 要求的核心物理对象及其特征。 |
+| **风格意境** | **Stylistic Essence** | 识别水墨、工笔、写意等国风特化风格，评估其艺术韵味。 |
+| **数量关系** | **Numerical Accuracy** | 验证图像中实体的数量（如“三个诗人”）是否符合逻辑，解决生图幻觉。 |
+| **空间方位** | **Spatial Reasoning** | 判定实体间的相对位置、远近透视是否符合文本描述。 |
+| **色彩准确** | **Color Harmony** | 评估色彩分布是否遵循原始需求，及是否契合国风传统美学。 |
+| **语义一致** | **Overall Semantic** | 从宏观视角判断画面的整体氛围与文本主旨的契合程度。 |
+
+> **可解释性 (Interpretability)**：系统除了输出 0-100 的数值评分外，还会生成基于逻辑推理的 **中文评语 (Reasoning)**，打破了传统 CLIP 评分的“黑盒”限制，为模型迭代提供具象化的改进方向。
+> 
+---
+
 ## ⚙️ 系统工作流 (Pipeline)
 
 专为 8GB 显存设计的串行分时复用 (Time-Sharing) 流程：
@@ -58,6 +75,17 @@
 3. **视觉阶段**：调用 Ollama -> GPU 加载 MiniCPM-V -> 识图生成描述 -> 释放显存。
 4. **客观评分**：CPU 运行 CLIP -> 计算图文向量相似度。
 5. **主观评分**：调用 Ollama -> GPU 加载 Qwen 3 -> 对比多维度语义 -> 输出 JSON 报告。
+
+---
+
+### 🛠️ 显存优化技术实现 (VRAM Optimization)
+
+针对消费级显卡（8GB 显存）难以同时常驻多个大模型的痛点，本系统设计并实现了一套 **Time-Sharing (分时复用) 推理流水线**：
+
+1. **动态权重卸载 (Dynamic Weight Offloading)**：利用 PyTorch 的 `to("cpu")` 机制，将 Stable Diffusion 模型设计为“访客模式”，仅在图像生成阶段占据显存，任务结束即刻回退至系统内存。
+2. **强制显存回收 (Explicit VRAM Cleanup)**：在不同模态（Diffusion -> VLM -> LLM）切换的关键节点，系统会强制调用 `cuda.empty_cache()` 清理碎片，确保下一阶段模型拥有连续的计算空间。
+3. **零持久化调度 (Zero-Persistence Scheduling)**：通过配置 Ollama 接口的 `keep_alive: 0` 参数，实现了视觉与语言模型在 API 层的即用即推，彻底消除了多模型并发导致的 Out-of-Memory (OOM) 风险。
+4. **异构计算分流 (Heterogeneous Computing)**：将计算压力较小的 CLIP 向量编码任务固定在 CPU 端执行，避免了 GPU 与 CPU 之间不必要的数据通信开销。
 
 ---
 
